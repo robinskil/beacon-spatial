@@ -1,0 +1,118 @@
+//! Coordinate transforms and `ST_SetSRID` as DataFusion scalar UDFs.
+
+use crate::datafusion::common::{Result, plan_err};
+use crate::datafusion::logical_expr::{
+    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
+};
+use crate::kernels::{crs, transform};
+use arrow_schema::{DataType, FieldRef};
+use geoarrow_schema::error::GeoArrowResult;
+use geoarrow_schema::{Dimension, GeoArrowType};
+
+use crate::udf::signature::{self, Arg};
+use crate::udf::util::{
+    all_scalar, constant_i32, geo_array, geo_field, geo_type, require_constant_i32, to_df,
+    wrap_geo_result,
+};
+
+unary_transform_udf!(
+    /// `ST_FlipCoordinates`. Swap x and y. Zero copy on separated coordinates.
+    StFlipCoordinates,
+    "st_flipcoordinates",
+    "ST_FlipCoordinates",
+    (|input| Ok(transform::flipped_type(input))) as fn(&GeoArrowType) -> GeoArrowResult<GeoArrowType>,
+    transform::st_flip_coordinates,
+    Arg::Geometry
+);
+
+unary_transform_udf!(
+    /// `ST_Force2D`. Drop z and m. Zero copy on separated coordinates.
+    StForce2D,
+    "st_force2d",
+    "ST_Force2D",
+    (|input| transform::forced_type(input, Dimension::XY))
+        as fn(&GeoArrowType) -> GeoArrowResult<GeoArrowType>,
+    transform::st_force_2d,
+    // WKB and WKT carry no dimension, so the catalog example must be a native geometry.
+    Arg::Coordinates
+);
+
+unary_transform_udf!(
+    /// `ST_Force3D`. Add a zero z where one is missing.
+    StForce3D,
+    "st_force3d",
+    "ST_Force3D",
+    (|input| transform::forced_type(input, Dimension::XYZ))
+        as fn(&GeoArrowType) -> GeoArrowResult<GeoArrowType>,
+    transform::st_force_3d,
+    Arg::Coordinates
+);
+
+/// `ST_SetSRID(geometry, srid)`.
+///
+/// The SRID lives in the column metadata, not in each value, so the second argument must be a
+/// constant. A per-row SRID cannot be represented and is rejected at plan time rather than
+/// silently dropped.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct StSetSrid {
+    signature: Signature,
+}
+
+impl StSetSrid {
+    /// Build the UDF.
+    pub fn new() -> Self {
+        Self {
+            signature: signature::args(&[Arg::Geometry, Arg::Integer]),
+        }
+    }
+}
+
+impl Default for StSetSrid {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ScalarUDFImpl for StSetSrid {
+    fn name(&self) -> &str {
+        "st_setsrid"
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        plan_err!("ST_SetSRID needs the argument fields to determine its return type")
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        let input = geo_type("ST_SetSRID", 0, &args.arg_fields[0])?;
+        let Some(srid) = constant_i32(&args, 1) else {
+            return plan_err!(
+                "ST_SetSRID needs a constant SRID. GeoArrow stores the coordinate reference \
+                 system once per column, so it cannot vary by row."
+            );
+        };
+        let output = crs::with_srid(&input, srid.unwrap_or(0));
+        Ok(geo_field("st_setsrid", &output))
+    }
+
+    fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+        let scalar_input = all_scalar(&args.args);
+        let srid = require_constant_i32("ST_SetSRID", 1, &args.args[1])?.unwrap_or(0);
+        let array = geo_array(&args.args[0], &args.arg_fields[0])?;
+        let result = crs::st_set_srid(array.as_ref(), srid).map_err(to_df)?;
+        wrap_geo_result(result, scalar_input)
+    }
+}
+
+/// Every transform function.
+pub fn transforms() -> Vec<ScalarUDF> {
+    vec![
+        ScalarUDF::new_from_impl(StFlipCoordinates::new()),
+        ScalarUDF::new_from_impl(StForce2D::new()),
+        ScalarUDF::new_from_impl(StForce3D::new()),
+        ScalarUDF::new_from_impl(StSetSrid::new()),
+    ]
+}

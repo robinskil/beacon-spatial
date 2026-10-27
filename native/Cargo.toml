@@ -1,16 +1,40 @@
 [package]
-name = "example-native"
+name = "spatial-native"
 version = "0.1.0"
 edition = "2024"
 publish = false
 
 [lib]
-name = "example_native"
-crate-type = ["cdylib"]
+name = "spatial_native"
+# The rlib lets the integration tests call the exported symbols.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# ST_Transform. Links the PROJ library of the build machine.
+proj = ["dep:proj", "geo/use-proj"]
+# ST_Transform. Builds PROJ from source and links it as a static library.
+proj-bundled = ["proj", "proj/bundled_proj"]
 
 [dependencies]
 # Pin a Beacon release tag here. The tag fixes the DataFusion version.
 beacon-plugin-sdk = { git = "https://github.com/maris-development/beacon", branch = "main" }
+# The arrow major must match the arrow of the SDK DataFusion and of geoarrow.
+arrow-array = "58"
+arrow-buffer = "58"
+arrow-cast = "58"
+arrow-schema = { version = "58", features = ["canonical_extension_types"] }
+geoarrow-array = "0.8"
+geoarrow-schema = "0.8"
+geo = "0.33"
+geo-traits = "0.3"
+geohash = "0.13"
+geojson = { version = "1", features = ["geo-types"] }
+proj = { version = "0.31", default-features = false, features = ["geo-types"], optional = true }
+serde_json = "1"
+thiserror = "2"
+wkb = "0.9"
+wkt = "0.14"
 
 [dev-dependencies]
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
