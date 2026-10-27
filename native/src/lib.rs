@@ -1,6 +1,5 @@
 //! Beacon plugin with PostGIS-compatible spatial functions on GeoArrow.
 
-mod constant_args;
 pub mod kernels;
 mod pushdown;
 pub mod udf;
@@ -12,8 +11,6 @@ use std::sync::Arc;
 
 use beacon_plugin_sdk::scalar_functions::HookedUdf;
 use datafusion::logical_expr::ScalarUDF;
-
-use constant_args::ConstantArgs;
 
 /// Returns every scalar spatial function, such as `ST_Intersects` and `ST_AsText`.
 pub fn functions() -> Vec<ScalarUDF> {
@@ -33,12 +30,9 @@ pub fn functions() -> Vec<ScalarUDF> {
     functions.extend(udf::reprojections());
     functions
         .into_iter()
-        .map(|udf| {
-            let udf = ConstantArgs::wrap(udf);
-            match pushdown::hooks_for(udf.name()) {
-                Some(hooks) => ScalarUDF::from(HookedUdf::new(Arc::new(udf), hooks)),
-                None => udf,
-            }
+        .map(|udf| match pushdown::hooks_for(udf.name()) {
+            Some(hooks) => ScalarUDF::from(HookedUdf::new(Arc::new(udf), hooks)),
+            None => udf,
         })
         .collect()
 }

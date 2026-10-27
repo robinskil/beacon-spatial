@@ -15,7 +15,6 @@ Read the Beacon guide `docs/docs/2.1.0-rc1/guides/write-a-plugin.md` for the plu
 | `native/src/kernels/` | The spatial kernels: array in, array out. They have no query engine code. |
 | `native/src/udf/` | The DataFusion functions around the kernels: signatures, type checks and calls. |
 | `native/src/pushdown.rs` | The planner hooks. They turn spatial filters into column ranges. |
-| `native/src/constant_args.rs` | Gives back the scalar arguments that the FFI expands to arrays. |
 | `native/tests/spatial/` | SQL tests. They load the functions through the FFI, as Beacon does. |
 | `native/Cargo.lock` | The lock file. The package script reads the DataFusion version from it. |
 | `scripts/package-plugin.py` | Packs the plugin into an archive and writes `SHA256SUMS`. |
@@ -47,13 +46,12 @@ So a raw text column from CSV works without a cast.
 
 ### Constant arguments
 
-`datafusion-ffi` sends each argument to the plugin as an array, also a literal.
+Beacon sends each literal argument to the plugin as a scalar.
 Some functions need a constant, for example the SRID of `ST_SetSRID`.
 Some functions have a fast path for a constant geometry, for example a prepared polygon in `ST_Intersects`.
+A column argument arrives as an array, also when each row holds the same value.
 
-The wrapper `ConstantArgs` gives back the scalar.
-When each row of an argument holds the same value, the function gets that value as a scalar.
-The check stops at the first row that is different.
+The plugin uses plugin SDK ABI 4. Beacon refuses a plugin with a different ABI.
 
 ## Pushdown
 
