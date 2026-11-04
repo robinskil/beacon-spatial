@@ -16,8 +16,8 @@ proj = ["dep:proj", "geo/use-proj"]
 proj-bundled = ["proj", "proj/bundled_proj"]
 
 [dependencies]
-# Pin a Beacon release tag here. The tag fixes the DataFusion version.
-beacon-plugin-sdk = { git = "https://github.com/maris-development/beacon", branch = "main" }
+# The Beacon tag fixes the SDK ABI and the DataFusion version.
+beacon-plugin-sdk = { git = "https://github.com/maris-development/beacon", tag = "v2.1.0-rc2" }
 # The arrow major must match the arrow of the SDK DataFusion and of geoarrow.
 arrow-array = "58"
 arrow-buffer = "58"

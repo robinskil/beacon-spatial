@@ -5,7 +5,7 @@ The functions work on GeoArrow, WKB (`Binary`) and WKT (`Utf8`) columns.
 The code started as a port of [datafusion-spatial](https://github.com/robinskil/datafusion-spatial).
 The plugin does not depend on that crate.
 
-Read the Beacon guide `docs/docs/2.1.0-rc1/guides/write-a-plugin.md` for the plugin rules.
+Read the Beacon guide `docs/docs/2.1.0-rc2/guides/write-a-plugin.md` for the plugin rules.
 
 ## Contents
 
@@ -51,7 +51,7 @@ Some functions need a constant, for example the SRID of `ST_SetSRID`.
 Some functions have a fast path for a constant geometry, for example a prepared polygon in `ST_Intersects`.
 A column argument arrives as an array, also when each row holds the same value.
 
-The plugin uses plugin SDK ABI 4. Beacon refuses a plugin with a different ABI.
+The plugin uses plugin SDK ABI 6. Beacon refuses a plugin with a different ABI.
 
 ## Pushdown
 
@@ -376,8 +376,8 @@ So the parts stay usable without a cast.
 The Beacon ref fixes the DataFusion version of the plugin.
 Beacon refuses a plugin with a different DataFusion major version.
 
-The plugin uses the branch `main`, because no Beacon release holds the SDK yet.
-Set a Beacon release tag when one is available:
+The plugin uses the Beacon tag `v2.1.0-rc2`. This tag has SDK ABI 6 and DataFusion 54.
+To change the Beacon version, set a different tag:
 
 ```toml
 beacon-plugin-sdk = { git = "https://github.com/maris-development/beacon", tag = "v2.1.0" }
